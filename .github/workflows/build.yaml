@@ -1,10 +1,16 @@
-name: Build libmpv-android
+name: Build libmpv-android (LGPL)
 
-on: 
+on:
   push:
     branches:
-      - main
+      - lgpl
+    tags:
+      - 'lgpl-v*'
   pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -31,10 +37,54 @@ jobs:
       - name: Apply patches
         working-directory: ./buildscripts
         run: ./patch.sh
+      - name: Archive complete corresponding source
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          # Exact sources (after patches) of every library compiled into the AAR,
+          # plus this repository's build scripts: the LGPL "corresponding source".
+          mkdir -p dist
+          git archive --format=tar --prefix=libmpv-android-lgpl/ HEAD > dist/src.tar
+          tar --exclude=.git --exclude='_build*' -rf dist/src.tar \
+            --transform 's|^buildscripts/deps|libmpv-android-lgpl/buildscripts/deps|' buildscripts/deps
+          xz -T0 -6 dist/src.tar
+          mv dist/src.tar.xz "dist/libmpv-android-lgpl-${GITHUB_REF_NAME}-source.tar.xz"
+          ls -lh dist
       - name: Build
         working-directory: ./buildscripts
         run: ./build.sh
+      - name: Verify LGPL (no GPL code in the native libraries)
+        run: |
+          set -e
+          rm -rf verify && mkdir verify && cd verify
+          unzip -q ../libmpv/build/outputs/aar/libmpv-release.aar
+          ls -l jni/*/
+          fail=0
+          for abi in jni/*/; do
+            echo "== $abi"
+            test ! -e "$abi/libpostproc.so" || { echo "libpostproc.so present (GPL-only)"; fail=1; }
+            cfg=$(strings "$abi/libavcodec.so" | grep -m1 -- '--target-os=android')
+            echo "FFmpeg configuration: $cfg"
+            echo "$cfg" | grep -q -- '--enable-gpl' && { echo "FFmpeg built with --enable-gpl"; fail=1; }
+            echo "$cfg" | grep -q -- '--enable-nonfree' && { echo "FFmpeg built with --enable-nonfree"; fail=1; }
+            lic=$(strings "$abi/libavutil.so" | grep -m1 '^libavutil license: ' || true)
+            echo "FFmpeg license string: $lic"
+            [ "$lic" = "libavutil license: LGPL version 3 or later" ] || { echo "unexpected FFmpeg license"; fail=1; }
+            mpvcfg=$(strings "$abi/libmpv.so" | grep -m1 -- '-Dgpl=' || true)
+            echo "mpv configuration: $mpvcfg"
+            echo "$mpvcfg" | grep -q -- '-Dgpl=false' || { echo "mpv not configured with -Dgpl=false"; fail=1; }
+            feat=$(strings "$abi/libmpv.so" | grep -m1 -E '(^| )libass( |$)' | grep -E '(^| )ffmpeg( |$)' || true)
+            echo "mpv features: $feat"
+            echo " $feat " | grep -q ' gpl ' && { echo "mpv feature list contains gpl"; fail=1; }
+          done
+          exit $fail
       - uses: actions/upload-artifact@v4
         with:
           name: libmpv-release.aar
           path: ./libmpv/build/outputs/aar/libmpv-release.aar
+      - name: Create release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ./libmpv/build/outputs/aar/libmpv-release.aar
+            ./dist/*-source.tar.xz

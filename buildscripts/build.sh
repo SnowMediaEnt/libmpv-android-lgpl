@@ -6,7 +6,8 @@ cd "$( dirname "${BASH_SOURCE[0]}" )"
 cleanbuild=0
 nodeps=0
 target=mpv-android
-archs=(armv7l arm64 x86 x86_64)
+# LGPL build for ARM TV boxes: 32-bit and 64-bit ARM only
+archs=(armv7l arm64)
 
 getdeps () {
 	varname="dep_${1//-/_}[*]"

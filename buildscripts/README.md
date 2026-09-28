@@ -33,7 +33,7 @@ Run `patch.sh` to apply the custom patches to the dependencies. These patches ar
 
 Run `build.sh` with `--clean` to clean the build directories before building.
 
-This builds for all architectures (`armeabi-v7a` `arm64-v8a` `x86` `x86_64`) by default.
+This builds for `armeabi-v7a` and `arm64-v8a` by default (LGPL fork; x86 and x86_64 removed).
 
 If you want to build only for a specific arch, build the native part like this:
 ```shell
