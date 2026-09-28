@@ -42,12 +42,13 @@ jobs:
         run: |
           # Exact sources (after patches) of every library compiled into the AAR,
           # plus this repository's build scripts: the LGPL "corresponding source".
-          mkdir -p dist
-          git archive --format=tar --prefix=libmpv-android-lgpl/ HEAD > dist/src.tar
-          tar --exclude=.git --exclude='_build*' -rf dist/src.tar \
-            --transform 's|^buildscripts/deps|libmpv-android-lgpl/buildscripts/deps|' buildscripts/deps
-          xz -T0 -6 dist/src.tar
-          mv dist/src.tar.xz "dist/libmpv-android-lgpl-${GITHUB_REF_NAME}-source.tar.xz"
+          mkdir -p dist stage/libmpv-android-lgpl
+          git archive HEAD | tar -x -C stage/libmpv-android-lgpl
+          tar -C buildscripts --exclude=.git --exclude='_build*' -cf - deps \
+            | tar -x -C stage/libmpv-android-lgpl/buildscripts
+          tar --format=posix -C stage -cf - libmpv-android-lgpl \
+            | xz -T0 -6 > "dist/libmpv-android-lgpl-${GITHUB_REF_NAME}-source.tar.xz"
+          rm -rf stage
           ls -lh dist
       - name: Build
         working-directory: ./buildscripts
