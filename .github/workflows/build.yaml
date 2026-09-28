@@ -72,8 +72,9 @@ jobs:
             mpvcfg=$(strings "$abi/libmpv.so" | grep -m1 -- '-Dgpl=' || true)
             echo "mpv configuration: $mpvcfg"
             echo "$mpvcfg" | grep -q -- '-Dgpl=false' || { echo "mpv not configured with -Dgpl=false"; fail=1; }
-            feat=$(strings "$abi/libmpv.so" | grep -m1 -E '(^| )libass( |$)' | grep -E '(^| )ffmpeg( |$)' || true)
+            feat=$(strings "$abi/libmpv.so" | grep -m1 '^List of enabled features: ' || true)
             echo "mpv features: $feat"
+            [ -n "$feat" ] || { echo "mpv feature list not found"; fail=1; }
             echo " $feat " | grep -q ' gpl ' && { echo "mpv feature list contains gpl"; fail=1; }
           done
           exit $fail
